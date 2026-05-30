@@ -1,0 +1,229 @@
+from flask import Flask, render_template_string
+
+app = Flask(__name__)
+
+# ----------------------------------------------------
+# Security Configuration
+# ----------------------------------------------------
+app.config.update(
+    SESSION_COOKIE_SECURE=True,
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE='Lax',
+)
+
+@app.after_request
+def add_security_headers(response):
+    """Adds essential security headers to protect the website and users."""
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    response.headers['X-Frame-Options'] = 'DENY'
+    response.headers['X-XSS-Protection'] = '1; mode=block'
+    response.headers['Content-Security-Policy'] = (
+        "default-src 'self'; "
+        "script-src 'self' https://cdn.jsdelivr.net; "
+        "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
+        "img-src 'self' data: https://images.unsplash.com; "
+        "font-src 'self';"
+    )
+    return response
+
+# ----------------------------------------------------
+# Monolithic HTML Template (Tailwind CSS Powered)
+# ----------------------------------------------------
+HTML_TEMPLATE = """
+<!DOCTYPE html>
+<html lang="no">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ info.name }} | Bestill Sushi og Wok i Larvik</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+</head>
+<body class="bg-stone-50 text-stone-800 font-sans antialiased">
+
+    {% if info.announcement %}
+    <div class="bg-amber-500 text-white text-center py-2 px-4 text-sm font-semibold sticky top-0 z-50 shadow-sm">
+        📢 {{ info.announcement }}
+    </div>
+    {% endif %}
+
+    <header class="bg-white/90 backdrop-blur-md shadow-xs sticky {% if info.announcement %}top-9{% else %}top-0{% endif %} z-40 transition-all">
+        <div class="max-w-6xl mx-auto px-4 py-4 flex justify-between items-center">
+            <h1 class="text-xl font-bold tracking-tight text-red-600 uppercase">{{ info.name }}</h1>
+            <nav class="hidden md:flex space-x-6 font-medium text-stone-600">
+                <a href="#menu" class="hover:text-red-600 transition">Meny</a>
+                <a href="#reviews" class="hover:text-red-600 transition">Anmeldelser</a>
+                <a href="#contact" class="hover:text-red-600 transition">Kontakt oss</a>
+            </nav>
+            <a href="{{ info.wolt_url }}" target="_blank" rel="noopener noreferrer" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-lg shadow-xs transition transform hover:scale-102 text-sm">
+                Bestill på Wolt
+            </a>
+        </div>
+    </header>
+
+    <section class="relative bg-stone-900 text-white py-24 px-4 bg-cover bg-center" style="background-image: linear-gradient(rgba(0,0,0,0.6), rgba(0,0,0,0.7)), url('https://images.unsplash.com/photo-1579871494447-9811cf80d66c?auto=format&fit=crop&w=1200&q=80');">
+        <div class="max-w-4xl mx-auto text-center space-y-4">
+            <div class="inline-flex items-center gap-1 bg-white/20 backdrop-blur-xs px-3 py-1 rounded-full text-sm font-medium">
+                ⭐ {{ info.rating }} / 5 stjerner ({{ info.reviews_count }} anmeldelser)
+            </div>
+            <h2 class="text-4xl md:text-6xl font-extrabold tracking-tight">Fersk Sushi & Smakfull Wok i Larvik</h2>
+            <p class="text-lg md:text-xl text-stone-300 max-w-2xl mx-auto">Høy kvalitet, rask servering og rimelige priser ({{ info.price_range }}).</p>
+            <div class="pt-4 flex flex-wrap justify-center gap-4">
+                <a href="#menu" class="bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-8 rounded-xl shadow-md transition">Se Menyen</a>
+                <a href="tel:{{ info.phone }}" class="bg-white text-stone-900 hover:bg-stone-100 font-bold py-3 px-8 rounded-xl shadow-md transition flex items-center gap-2">
+                    📞 Ring {{ info.phone }}
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <main class="max-w-6xl mx-auto px-4 py-12 space-y-20">
+
+        <section id="menu" class="scroll-mt-24">
+            <div class="text-center max-w-xl mx-auto mb-12">
+                <h3 class="text-3xl font-bold text-stone-900">Vår Meny</h3>
+                <p class="text-stone-600 mt-2">Smakfulle retter laget med ferske råvarer. Perfekt for take-away!</p>
+            </div>
+
+            <div class="grid md:grid-cols-2 gap-12">
+                <div class="bg-white p-6 rounded-2xl shadow-xs border border-stone-100">
+                    <h4 class="text-2xl font-bold text-red-600 mb-6 pb-2 border-b border-stone-100 flex items-center gap-2">🍣 Sushi</h4>
+                    <div class="space-y-6">
+                        {% for item in menu.sushi %}
+                        <div class="flex justify-between items-start gap-4">
+                            <div>
+                                <h5 class="font-bold text-stone-900 text-lg">{{ item.name }}</h5>
+                                <p class="text-sm text-stone-500">{{ item.description }}</p>
+                            </div>
+                            <span class="font-bold text-stone-900 whitespace-nowrap bg-stone-100 px-2 py-1 rounded-md text-sm">{{ item.price }}</span>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <div class="bg-white p-6 rounded-2xl shadow-xs border border-stone-100">
+                    <h4 class="text-2xl font-bold text-red-600 mb-6 pb-2 border-b border-stone-100 flex items-center gap-2">🔥 Wok retter</h4>
+                    <div class="space-y-6">
+                        {% for item in menu.wok %}
+                        <div class="flex justify-between items-start gap-4">
+                            <div>
+                                <h5 class="font-bold text-stone-900 text-lg">{{ item.name }}</h5>
+                                <p class="text-sm text-stone-500">{{ item.description }}</p>
+                            </div>
+                            <span class="font-bold text-stone-900 whitespace-nowrap bg-stone-100 px-2 py-1 rounded-md text-sm">{{ item.price }}</span>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="reviews" class="bg-stone-100 -mx-4 px-4 py-12 md:rounded-3xl scroll-mt-24">
+            <div class="max-w-4xl mx-auto">
+                <h3 class="text-3xl font-bold text-stone-900 text-center mb-8">Hva kundene sier</h3>
+                <div class="grid md:grid-cols-3 gap-6">
+                    {% for review in reviews %}
+                    <div class="bg-white p-6 rounded-xl shadow-xs flex flex-col justify-between">
+                        <p class="text-stone-600 italic text-sm">"{{ review.text }}"</p>
+                        <div class="mt-4 pt-4 border-t border-stone-100">
+                            <span class="block font-bold text-stone-900 text-sm">{{ review.user }}</span>
+                            <span class="text-amber-500 text-xs">★★★★★</span>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </section>
+
+        <section id="contact" class="grid md:grid-cols-2 gap-8 items-center scroll-mt-24">
+            <div class="space-y-6">
+                <h3 class="text-3xl font-bold text-stone-900">Besøk Eller Hent Maten</h3>
+                <p class="text-stone-600">De fleste av våre kunder velger takeout, men vi har også koselige sitteplasser i restauranten om du ønsker å spise her.</p>
+                
+                <div class="space-y-3 font-medium text-stone-700">
+                    <div class="flex items-center gap-3">
+                        <span class="text-xl">📍</span> 
+                        <span>{{ info.address }}</span>
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <span class="text-xl">📞</span> 
+                        <a href="tel:{{ info.phone }}" class="text-red-600 hover:underline">{{ info.phone }}</a>
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <span class="text-xl">⏰</span> 
+                        <span>{{ info.hours }}</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="bg-red-50 p-8 rounded-2xl border border-red-100 text-center space-y-4">
+                <h4 class="text-xl font-bold text-red-900">Sugen på god sushi nå?</h4>
+                <p class="text-red-700 text-sm">Ring oss direkte for raskest henting, eller få det levert på døra via Wolt.</p>
+                <div class="flex flex-col gap-2">
+                    <a href="tel:{{ info.phone }}" class="bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-4 rounded-xl shadow-xs transition">
+                        Ring og Bestill Takeaway
+                    </a>
+                    <a href="{{ info.wolt_url }}" target="_blank" rel="noopener noreferrer" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-4 rounded-xl shadow-xs transition">
+                        Bestill Hjemmelevering
+                    </a>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <footer class="bg-stone-900 text-stone-400 py-8 border-t border-stone-800 text-center text-sm">
+        <p>&copy; 2026 {{ info.name }}. All rights reserved.</p>
+        <p class="mt-1 text-stone-600">Sverres gate 4, 3256 Larvik</p>
+    </footer>
+
+</body>
+</html>
+"""
+
+# ----------------------------------------------------
+# Application Routing
+# ----------------------------------------------------
+@app.route('/')
+def home():
+    # Dynamic information container
+    restaurant_info = {
+        "name": "Larvik sushi og wok",
+        "rating": "4.5",
+        "reviews_count": "267",
+        "price_range": "100–200 kr",
+        "address": "Sverres gate 4, 3256 Larvik",
+        "phone": "90 99 49 98",
+        "hours": "Åpner kl. 13:00",
+        "wolt_url": "https://wolt.com",  
+        "announcement": "Kjære kunder vi holder sommer stengt fra 20.juni t.o.m 27 juni. GOD SOMMER vi ses!"
+    }
+    
+    # Structured Menu Data
+    menu = {
+        "sushi": [
+            {"name": "Maki Laks", "description": "Laks og avokado rull", "price": "120 kr"},
+            {"name": "Nigiri Miks", "description": "Kokkens utvalg av 8 biter fersk fisk", "price": "160 kr"},
+            {"name": "Tempura Maki", "description": "Frityrstekt kongereke med spennende krydder", "price": "145 kr"}
+        ],
+        "wok": [
+            {"name": "Kylling Wok", "description": "Woket kylling med friske grønnsaker og ris", "price": "150 kr"},
+            {"name": "Biff i Sataysaus", "description": "Storfekjøtt skivet i fyldig sataysaus", "price": "165 kr"}
+        ]
+    }
+
+    # Top Verified Reviews
+    featured_reviews = [
+        {"user": "Tabi Rosida Horn", "text": "They have the best sushi, and quite good wok dishes. Most of their customers are for takeout."},
+        {"user": "Quỳnh Anh Nguyễn", "text": "The food was real good and the staff were very lovely. Definitely worth coming back."},
+        {"user": "David Daubner", "text": "Great sushi restaurant, the staff was nice and knew english really well. The food was amazing, the fish was fresh."}
+    ]
+
+    return render_template_string(
+        HTML_TEMPLATE, 
+        info=restaurant_info, 
+        menu=menu, 
+        reviews=featured_reviews
+    )
+
+if __name__ == '__main__':
+    # Set debug=False when launching to a real server
+    app.run(debug=True, port=5000)
